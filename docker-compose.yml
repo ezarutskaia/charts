@@ -1,0 +1,34 @@
+services:
+  # Go
+  golang:
+    container_name: golang_charts
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - ./src:/go/src
+    ports:
+      - '1323:1323'
+    depends_on:
+      sql:
+        condition: service_healthy
+    command: go run main.go
+
+  # MySQL container
+  sql:
+    container_name: sql_charts
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - '4306:3306'
+    volumes:
+      - ./mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root --password=$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
