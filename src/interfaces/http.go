@@ -378,10 +378,10 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		return server.Response(c, Options{
 			Data:    map[string]interface{}{
-				"count of issues":   issueCount,
-				"count of projects":   projectCount,
-				"count of users":   userCount,
-				"number of tasks by users": countIssuesByUser,
+				"count_of_issues":   issueCount,
+				"count_of_projects":   projectCount,
+				"count_of_users":   userCount,
+				"number_of_tasks_by_users": countIssuesByUser,
 				},
 		})
 	})
