@@ -11,9 +11,19 @@ type Repository struct {
 	DB *gorm.DB
 }
 
+type UserTaskCount struct {
+		UserID     uint  `json:"user_id"`
+        IssueCount int64 `json:"issue_count"`
+	}
+
 func (repo *Repository) CreateIssue(issue *issue.Issue) (uint, error) {
 	result := (*repo.DB).Create(issue)
 	return issue.ID, result.Error
+}
+
+func (repo *Repository) CreateIssues(issues []issue.Issue) error {
+	result := (*repo.DB).Create(&issues)
+	return result.Error
 }
 
 func (repo *Repository) CreateUser(user *user.User) (uint, error) {
@@ -21,9 +31,19 @@ func (repo *Repository) CreateUser(user *user.User) (uint, error) {
 	return user.ID, result.Error
 }
 
+func (repo *Repository) CreateUsers(users []user.User) error {
+	result := (*repo.DB).Create(&users)
+	return result.Error
+}
+
 func (repo *Repository) CreateProject(project *project.Project) (uint, error) {
 	result := (*repo.DB).Create(project)
 	return project.ID, result.Error
+}
+
+func (repo *Repository) CreateProjects(projects []project.Project) error {
+	result := (*repo.DB).Create(&projects)
+	return result.Error
 }
 
 func (repo *Repository) DeleteIssue (id uint) error {
@@ -75,4 +95,31 @@ func (repo *Repository) GetProject (id uint) (project *project.Project, err erro
 func (repo *Repository) UsersByID (ids []uint) (users []user.User, err error) {
 	result := (*repo.DB).Find(&users, ids)
 	return users, result.Error
+}
+
+func (repo *Repository) CountIssues() (count int64, err error) {
+	result := (*repo.DB).Model(&issue.Issue{}).Count(&count)
+	return count, result.Error
+}
+
+func (repo *Repository) CountProjects() (count int64, err error) {
+	result := (*repo.DB).Model(&project.Project{}).Count(&count)
+	return count, result.Error
+}
+
+func (repo *Repository) CountUsers() (count int64, err error) {
+	result := (*repo.DB).Model(&user.User{}).Count(&count)
+	return count, result.Error
+}
+
+func (repo *Repository) CountIssuesUsers() ([]UserTaskCount, error){
+	var results []UserTaskCount
+
+	result := (*repo.DB).Model(&issue.Issue{}).
+		Select("user_id, count(id) as issue_count").
+		Group("user_id").
+		Order("issue_count desc").
+		Scan(&results)
+
+	return results, result.Error
 }
