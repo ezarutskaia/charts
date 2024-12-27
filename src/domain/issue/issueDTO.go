@@ -6,6 +6,6 @@ type  DTOissue struct {
 	ProjectID uint      `json:"project_id"`
 	Priority  int       `json:"priority"`
 	Status    string    `json:"status"`
-	Deadline  string 	`json:"deadline"`
+	Deadline  string `json:"deadline"`
 	Watchers  []uint    `json:"watchers"`
 }

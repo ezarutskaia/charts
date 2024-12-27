@@ -5,5 +5,5 @@ import "gorm.io/gorm"
 type User struct {
 	gorm.Model
 	ID uint `gorm:"primaryKey"`
-	Email string `gorm:"size:256"`
+	Email string `gorm:"size:256" json:"email"`
 }

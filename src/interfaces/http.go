@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+const batchSize int = 1000
 type HttpServer struct {}
 
 type Options struct {
@@ -38,6 +39,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	userGroup.GET("/list", func(c echo.Context) error {
 		users, err := controller.Repo.ListUser()
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "cann't finde users",
 			})
@@ -50,6 +52,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	userGroup.POST("/add", func(c echo.Context) error {
 		newUser := new(user.User)
 		if err := c.Bind(newUser); err != nil {
+			c.Logger().Error("Bind error:", err)
 			return server.Response(c, Options{
 				Message: "data reading error",
 			})
@@ -57,6 +60,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		id, err := controller.CreateUser(newUser.Email)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "data recording error",
 			})
@@ -67,10 +71,34 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		})
 	})
 
+	userGroup.POST("/batch", func(c echo.Context) error {
+		var users []user.User
+		if err := c.Bind(&users); err != nil {
+			c.Logger().Error("Bind error:", err)
+			return server.Response(c, Options{
+				Message: "invalid JSON payload",
+			})
+		}
+
+		err := controller.CreateUsers(users)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "Failed to insert users",
+				})
+		}
+
+		return server.Response(c, Options{
+			Message: "Users inserted successfully",
+			Data:    map[string]interface{}{"count":   len(users)},
+		})
+	})
+
 	userGroup.DELETE("/delete", func(c echo.Context) (err error) {
 		idParam := c.QueryParam("id")
 		idInt, err := strconv.ParseUint(idParam, 10, 32)
 		if err != nil {
+			c.Logger().Error("Parse error:", err)
     		return server.Response(c, Options{
         		Message: "invalid ID",
     		})
@@ -79,6 +107,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		err = controller.DeleteUser(id)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "user not found",
 			})
@@ -95,6 +124,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	projectGroup.GET("/list", func(c echo.Context) error {
 		projects, err := controller.Repo.ListProject()
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "cann't finde projects",
 			})
@@ -107,6 +137,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	projectGroup.POST("/add", func(c echo.Context) error {
 		newProject := new(project.Project)
 		if err := c.Bind(newProject); err != nil {
+			c.Logger().Error("Bind error:", err)
 			return server.Response(c, Options{
 				Message: "data reading error",
 			})
@@ -114,6 +145,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		id, err := controller.CreateProject(newProject.Name, newProject.Blocked)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "data recording error",
 			})
@@ -124,10 +156,34 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		})
 	})
 
+	projectGroup.POST("/batch", func(c echo.Context) error {
+		var projects []project.Project
+		if err := c.Bind(&projects); err != nil {
+			c.Logger().Error("Bind error:", err)
+			return server.Response(c, Options{
+				Message: "invalid JSON payload",
+			})
+		}
+
+		err := controller.CreateProjects(projects)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "Failed to insert projects",
+				})
+		}
+
+		return server.Response(c, Options{
+			Message: "Projects inserted successfully",
+			Data:    map[string]interface{}{"count":   len(projects)},
+		})
+	})
+
 	projectGroup.DELETE("/delete", func(c echo.Context) (err error) {
 		idParam := c.QueryParam("id")
 		idInt, err := strconv.ParseUint(idParam, 10, 32)
 		if err != nil {
+			c.Logger().Error("Parse error:", err)
     		return server.Response(c, Options{
         		Message: "invalid ID",
     		})
@@ -136,6 +192,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		err = controller.DeleteProject(id)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "project not found",
 			})
@@ -152,6 +209,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	issueGroup.GET("/list", func(c echo.Context) error {
 		issues, err := controller.Repo.ListIssue()
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "cann't finde issues",
 			})
@@ -164,6 +222,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	issueGroup.POST("/add", func(c echo.Context) error {
 		dto := new(issue.DTOissue)
 		if err := c.Bind(dto); err != nil {
+			c.Logger().Error("Bind error:", err)
 			return server.Response(c, Options{
 				Message: "data reading error",
 			})
@@ -171,6 +230,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		deadline, err := time.Parse("02-01-2006", dto.Deadline)
 		if err != nil {
+			c.Logger().Error("Parse error:", err)
 			return server.Response(c, Options{
 				Message: "invalid deadline format",
 			})
@@ -178,6 +238,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		newProject, err := controller.Repo.GetProject(dto.ProjectID)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "project search error",
 			})
@@ -185,6 +246,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		newUser, err := controller.Repo.GetUser(dto.UserID)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "user search error",
 			})
@@ -192,6 +254,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		users, err := controller.Repo.UsersByID(dto.Watchers)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "users search error",
 			})
@@ -199,6 +262,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		id, err := controller.CreateIssue(dto.Title, *newUser, *newProject, dto.Priority, dto.Status, deadline, users)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "data recording error",
 			})
@@ -209,10 +273,57 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		})
 	})
 
+	issueGroup.POST("/batch", func(c echo.Context) error {
+		var payloads []issue.DTOissue
+		if err := c.Bind(&payloads); err != nil {
+			c.Logger().Error("Bind error:", err)
+			return server.Response(c, Options{
+				Message: "invalid JSON payload",
+				})
+		}
+
+		var issues []issue.Issue
+		for _, p := range payloads {
+			users, _ := controller.Repo.UsersByID(p.Watchers)
+			deadline, _ := time.Parse("02-01-2006", p.Deadline)
+
+			issues = append(issues, issue.Issue{
+				Title:     p.Title,
+				UserID:    p.UserID,
+				ProjectID: p.ProjectID,
+				Priority:  p.Priority,
+				Status:    p.Status,
+				Deadline:  deadline,
+				Watchers:  users,
+				})
+		}
+
+		for i := 0; i < len(issues); i += batchSize {
+			end := i + batchSize
+			if end > len(issues) {
+				end = len(issues)
+			}
+
+			err := controller.CreateIssues(issues[i:end])
+			if err != nil {
+				c.Logger().Error("Insert error:", err)
+				return server.Response(c, Options{
+					Message: "Failed to insert issues",
+					})
+			}
+		}
+
+		return server.Response(c, Options{
+			Message: "Issues inserted successfully",
+			Data:    map[string]interface{}{"count":   len(issues)},
+		})
+	})
+
 	issueGroup.DELETE("/delete", func(c echo.Context) (err error) {
 		idParam := c.QueryParam("id")
 		idInt, err := strconv.ParseUint(idParam, 10, 32)
 		if err != nil {
+			c.Logger().Error("Parse error:", err)
     		return server.Response(c, Options{
         		Message: "invalid ID",
     		})
@@ -221,6 +332,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		err = controller.DeleteIssue(id)
 		if err != nil {
+			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "issue not found",
 			})
@@ -228,6 +340,49 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 		return server.Response(c, Options{
 			Message: "issue was deleted",
+		})
+	})
+
+	e.GET("/stat", func(c echo.Context) error {
+		userCount, err := controller.Repo.CountUsers()
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "row counting error for user",
+			})
+		}
+
+		projectCount, err := controller.Repo.CountProjects()
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "row counting error for project",
+			})
+		}
+
+		issueCount, err := controller.Repo.CountIssues()
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "row counting error for issue",
+			})
+		}
+
+		countIssuesByUser, err := controller.Repo.CountIssuesUsers()
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "row counting error for issue_by_users",
+			})
+		}
+
+		return server.Response(c, Options{
+			Data:    map[string]interface{}{
+				"count_of_issues":   issueCount,
+				"count_of_projects":   projectCount,
+				"count_of_users":   userCount,
+				"number_of_tasks_by_users": countIssuesByUser,
+				},
 		})
 	})
 
