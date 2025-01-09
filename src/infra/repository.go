@@ -11,10 +11,15 @@ type Repository struct {
 	DB *gorm.DB
 }
 
-type UserTaskCount struct {
-		UserID     uint  `json:"user_id"`
-        IssueCount int64 `json:"issue_count"`
+type IdCount struct {
+		ItemID int
+        Count  int
 	}
+
+type StatusCount struct {
+	IssueStatus string
+	Count  int
+}
 
 func (repo *Repository) CreateIssue(issue *issue.Issue) (uint, error) {
 	result := (*repo.DB).Create(issue)
@@ -67,13 +72,13 @@ func (repo *Repository) ListIssue () (issues []*issue.Issue, err error) {
 	return issues, result.Error
 }
 
-func (repo *Repository) ListUser () (users []*user.User, err error) {
-	result := (*repo.DB).Find(&users)
+func (repo *Repository) ListUser () (users []*user.DTOUser, err error) {
+	result := (*repo.DB).Model(&user.User{}).Select("id", "email").Find(&users)
 	return users, result.Error
 }
 
-func (repo *Repository) ListProject () (projects []*project.Project, err error) {
-	result := (*repo.DB).Find(&projects)
+func (repo *Repository) ListProject () (projects []*project.DTOProject, err error) {
+	result := (*repo.DB).Model(&project.Project{}).Select("id", "name").Find(&projects)
 	return projects, result.Error
 }
 
@@ -112,14 +117,66 @@ func (repo *Repository) CountUsers() (count int64, err error) {
 	return count, result.Error
 }
 
-func (repo *Repository) CountIssuesUsers() ([]UserTaskCount, error){
-	var results []UserTaskCount
+func (repo *Repository) CountIssuesUsers() (map[int]int, error){
+	var results []IdCount
+	idCountMap := map[int]int{}
 
 	result := (*repo.DB).Model(&issue.Issue{}).
-		Select("user_id, count(id) as issue_count").
-		Group("user_id").
-		Order("issue_count desc").
+		Select("user_id as ItemID, count(id) as Count").
+		Group("ItemID").
 		Scan(&results)
 
-	return results, result.Error
+	for _, item := range results {
+		idCountMap[item.ItemID] = item.Count
+	}
+
+	return idCountMap, result.Error
+}
+
+func (repo *Repository) CountIssuesProjects() (map[int]int, error){
+	var results []IdCount
+	idCountMap := map[int]int{}
+
+	result := (*repo.DB).Model(&issue.Issue{}).
+		Select("project_id as ItemID, count(id) as Count").
+		Group("ItemID").
+		Scan(&results)
+
+	for _, item := range results {
+		idCountMap[item.ItemID] = item.Count
+	}
+
+	return idCountMap, result.Error
+}
+
+func (repo *Repository) CountIssuesPriority() (map[int]int, error){
+	var results []IdCount
+	idCountMap := map[int]int{}
+
+	result := (*repo.DB).Model(&issue.Issue{}).
+		Select("priority as ItemID, count(id) as Count").
+		Group("ItemID").
+		Scan(&results)
+
+	for _, item := range results {
+		idCountMap[item.ItemID] = item.Count
+	}
+
+	return idCountMap, result.Error
+}
+
+func (repo *Repository) CountIssuesStatus() (map[string]int, error){
+	var results []StatusCount
+	idCountMap := map[string]int{}
+
+	result := (*repo.DB).Model(&issue.Issue{}).
+		Select("status as IssueStatus, count(id) as Count").
+		Group("IssueStatus").
+		Scan(&results)
+
+	for _, item := range results {
+		idCountMap[item.IssueStatus] = item.Count
+	}
+
+	return idCountMap, result.Error
 }

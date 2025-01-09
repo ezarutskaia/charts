@@ -14,6 +14,9 @@ import (
 const batchSize int = 1000
 type HttpServer struct {}
 
+type GroupByRequest struct {
+    GroupBy string `json:"groupby"`
+}
 type Options struct {
     Message  string
     Data   interface{}
@@ -368,21 +371,114 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			})
 		}
 
-		countIssuesByUser, err := controller.Repo.CountIssuesUsers()
-		if err != nil {
-			c.Logger().Error("SQL error:", err)
-			return server.Response(c, Options{
-				Message: "row counting error for issue_by_users",
-			})
-		}
-
 		return server.Response(c, Options{
 			Data:    map[string]interface{}{
 				"count_of_issues":   issueCount,
 				"count_of_projects":   projectCount,
 				"count_of_users":   userCount,
-				"number_of_tasks_by_users": countIssuesByUser,
-				},
+			},
+		})
+	})
+
+	e.GET("/charts", func(c echo.Context) error {
+		var req GroupByRequest
+		if err := c.Bind(&req); err != nil {
+			c.Logger().Error("Bind groupby error:", err)
+			return server.Response(c, Options{
+				Message: "invalid JSON payload",
+			})
+		}
+
+		groupby := req.GroupBy
+
+		switch groupby {
+		case "user":
+			result, err := controller.Repo.CountIssuesUsers()
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "row counting error for issue",
+				})
+			}
+
+			users, err := controller.Repo.ListUser()
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "cann't finde users",
+				})
+			}
+
+			return server.Response(c, Options{
+				Data:    map[string]interface{}{
+					"groupBy":   groupby,
+					"result":   result,
+					"fields":   users,
+					},
+				})
+
+		case "project":
+			result, err := controller.Repo.CountIssuesProjects()
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "row counting error for issue",
+				})
+			}
+
+			projects, err := controller.Repo.ListProject()
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "cann't finde projects",
+				})
+			}
+
+			return server.Response(c, Options{
+				Data:    map[string]interface{}{
+					"groupBy":   groupby,
+					"result":   result,
+					"fields":   projects,
+					},
+				})
+
+		case "priority":
+			result, err := controller.Repo.CountIssuesPriority()
+				if err != nil {
+					c.Logger().Error("SQL error:", err)
+					return server.Response(c, Options{
+						Message: "row counting error for issue",
+					})
+				}
+
+			return server.Response(c, Options{
+				Data:    map[string]interface{}{
+					"groupBy":   groupby,
+					"result":   result,
+					"fields":   nil,
+					},
+				})
+
+		case "status":
+			result, err := controller.Repo.CountIssuesStatus()
+				if err != nil {
+					c.Logger().Error("SQL error:", err)
+					return server.Response(c, Options{
+						Message: "row counting error for issue",
+					})
+				}
+
+			return server.Response(c, Options{
+				Data:    map[string]interface{}{
+					"groupBy":   groupby,
+					"result":   result,
+					"fields":   nil,
+					},
+			})
+		}
+
+		return server.Response(c, Options{
+			Message: "unknown groupby",
 		})
 	})
 
