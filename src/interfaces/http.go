@@ -6,37 +6,44 @@ import (
 	"charts/domain/project"
 	"charts/domain/user"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"net/http"
 	"strconv"
 	"time"
 )
 
 const batchSize int = 1000
-type HttpServer struct {}
+
+type HttpServer struct{}
 
 type GroupByRequest struct {
-    GroupBy string `json:"groupby"`
+	GroupBy string `json:"groupBy"`
 }
 type Options struct {
-    Message  string
-    Data   interface{}
+	Message string
+	Data    interface{}
 }
 
-func (server HttpServer) Response (c echo.Context, options Options) error {
+func (server HttpServer) Response(c echo.Context, options Options) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
-        "message": options.Message,
-        "data":    options.Data,
-    })
+		"message": options.Message,
+		"data":    options.Data,
+	})
 }
 
 func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	e := echo.New()
 
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost},
+	}))
+
 	userGroup := e.Group("/user")
 	projectGroup := e.Group("/project")
 	issueGroup := e.Group("/issue")
 
-		// ***
+	// ***
 	// USER
 
 	userGroup.GET("/list", func(c echo.Context) error {
@@ -70,7 +77,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		}
 
 		return server.Response(c, Options{
-			Data:    map[string]interface{}{"id": id},
+			Data: map[string]interface{}{"id": id},
 		})
 	})
 
@@ -88,12 +95,12 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "Failed to insert users",
-				})
+			})
 		}
 
 		return server.Response(c, Options{
 			Message: "Users inserted successfully",
-			Data:    map[string]interface{}{"count":   len(users)},
+			Data:    map[string]interface{}{"count": len(users)},
 		})
 	})
 
@@ -102,9 +109,9 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		idInt, err := strconv.ParseUint(idParam, 10, 32)
 		if err != nil {
 			c.Logger().Error("Parse error:", err)
-    		return server.Response(c, Options{
-        		Message: "invalid ID",
-    		})
+			return server.Response(c, Options{
+				Message: "invalid ID",
+			})
 		}
 		id := uint(idInt)
 
@@ -133,7 +140,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			})
 		}
 		return server.Response(c, Options{
-			Data:   projects,
+			Data: projects,
 		})
 	})
 
@@ -155,7 +162,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		}
 
 		return server.Response(c, Options{
-			Data:    map[string]interface{}{"id": id},
+			Data: map[string]interface{}{"id": id},
 		})
 	})
 
@@ -173,12 +180,12 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
 				Message: "Failed to insert projects",
-				})
+			})
 		}
 
 		return server.Response(c, Options{
 			Message: "Projects inserted successfully",
-			Data:    map[string]interface{}{"count":   len(projects)},
+			Data:    map[string]interface{}{"count": len(projects)},
 		})
 	})
 
@@ -187,9 +194,9 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		idInt, err := strconv.ParseUint(idParam, 10, 32)
 		if err != nil {
 			c.Logger().Error("Parse error:", err)
-    		return server.Response(c, Options{
-        		Message: "invalid ID",
-    		})
+			return server.Response(c, Options{
+				Message: "invalid ID",
+			})
 		}
 		id := uint(idInt)
 
@@ -272,7 +279,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		}
 
 		return server.Response(c, Options{
-			Data:    map[string]interface{}{"id": id},
+			Data: map[string]interface{}{"id": id},
 		})
 	})
 
@@ -282,7 +289,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			c.Logger().Error("Bind error:", err)
 			return server.Response(c, Options{
 				Message: "invalid JSON payload",
-				})
+			})
 		}
 
 		var issues []issue.Issue
@@ -298,7 +305,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 				Status:    p.Status,
 				Deadline:  deadline,
 				Watchers:  users,
-				})
+			})
 		}
 
 		for i := 0; i < len(issues); i += batchSize {
@@ -312,13 +319,13 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 				c.Logger().Error("Insert error:", err)
 				return server.Response(c, Options{
 					Message: "Failed to insert issues",
-					})
+				})
 			}
 		}
 
 		return server.Response(c, Options{
 			Message: "Issues inserted successfully",
-			Data:    map[string]interface{}{"count":   len(issues)},
+			Data:    map[string]interface{}{"count": len(issues)},
 		})
 	})
 
@@ -327,9 +334,9 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		idInt, err := strconv.ParseUint(idParam, 10, 32)
 		if err != nil {
 			c.Logger().Error("Parse error:", err)
-    		return server.Response(c, Options{
-        		Message: "invalid ID",
-    		})
+			return server.Response(c, Options{
+				Message: "invalid ID",
+			})
 		}
 		id := uint(idInt)
 
@@ -372,15 +379,15 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		}
 
 		return server.Response(c, Options{
-			Data:    map[string]interface{}{
+			Data: map[string]interface{}{
 				"count_of_issues":   issueCount,
-				"count_of_projects":   projectCount,
-				"count_of_users":   userCount,
+				"count_of_projects": projectCount,
+				"count_of_users":    userCount,
 			},
 		})
 	})
 
-	e.GET("/charts", func(c echo.Context) error {
+	e.POST("/charts", func(c echo.Context) error {
 		var req GroupByRequest
 		if err := c.Bind(&req); err != nil {
 			c.Logger().Error("Bind groupby error:", err)
@@ -410,12 +417,12 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			}
 
 			return server.Response(c, Options{
-				Data:    map[string]interface{}{
-					"groupBy":   groupby,
-					"result":   result,
-					"fields":   users,
-					},
-				})
+				Data: map[string]interface{}{
+					"groupBy": groupby,
+					"result":  result,
+					"fields":  users,
+				},
+			})
 
 		case "project":
 			result, err := controller.Repo.CountIssuesProjects()
@@ -435,45 +442,45 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			}
 
 			return server.Response(c, Options{
-				Data:    map[string]interface{}{
-					"groupBy":   groupby,
-					"result":   result,
-					"fields":   projects,
-					},
-				})
+				Data: map[string]interface{}{
+					"groupBy": groupby,
+					"result":  result,
+					"fields":  projects,
+				},
+			})
 
 		case "priority":
 			result, err := controller.Repo.CountIssuesPriority()
-				if err != nil {
-					c.Logger().Error("SQL error:", err)
-					return server.Response(c, Options{
-						Message: "row counting error for issue",
-					})
-				}
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "row counting error for issue",
+				})
+			}
 
 			return server.Response(c, Options{
-				Data:    map[string]interface{}{
-					"groupBy":   groupby,
-					"result":   result,
-					"fields":   nil,
-					},
-				})
+				Data: map[string]interface{}{
+					"groupBy": groupby,
+					"result":  result,
+					"fields":  nil,
+				},
+			})
 
 		case "status":
 			result, err := controller.Repo.CountIssuesStatus()
-				if err != nil {
-					c.Logger().Error("SQL error:", err)
-					return server.Response(c, Options{
-						Message: "row counting error for issue",
-					})
-				}
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "row counting error for issue",
+				})
+			}
 
 			return server.Response(c, Options{
-				Data:    map[string]interface{}{
-					"groupBy":   groupby,
-					"result":   result,
-					"fields":   nil,
-					},
+				Data: map[string]interface{}{
+					"groupBy": groupby,
+					"result":  result,
+					"fields":  nil,
+				},
 			})
 		}
 
