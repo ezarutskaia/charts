@@ -16,11 +16,6 @@ type IdCount struct {
 	Count  int     `gorm:"column:Count"`
 }
 
-type StatusCount struct {
-	IssueStatus string
-	Count  int
-}
-
 func (repo *Repository) CreateIssue(issue *issue.Issue) (uint, error) {
 	result := (*repo.DB).Create(issue)
 	return issue.ID, result.Error
@@ -117,7 +112,7 @@ func (repo *Repository) CountUsers() (count int64, err error) {
 	return count, result.Error
 }
 
-func (repo *Repository) CountIssuesGroup(groupby string) (map[string]int, error){
+func (repo *Repository) CountIssuesGroup(groupby string, filters map[string]string) (map[string]int, error){
 	var results []IdCount
 	idCountMap := map[string]int{}
 
@@ -125,67 +120,22 @@ func (repo *Repository) CountIssuesGroup(groupby string) (map[string]int, error)
 
 	switch groupby {
 	case "user":
-		result = result.Select("CAST(user_id AS CHAR) as Reason, count(id) as Count").Group("user_id")
+		result = result.Select("CAST(user_id AS CHAR) as Reason, count(id) as Count")
+		groupby = "user_id"
 	case "project":
-		result = result.Select("CAST(project_id AS CHAR) as Reason, count(id) as Count").Group("project_id")
+		result = result.Select("CAST(project_id AS CHAR) as Reason, count(id) as Count")
+		groupby = "project_id"
 	case "priority":
-		result = result.Select("CAST(priority AS CHAR) as Reason, count(id) as Count").Group("priority")
+		result = result.Select("CAST(priority AS CHAR) as Reason, count(id) as Count")
 	case "status":
-		result = result.Select("status as Reason, count(id) as Count").Group("status")
+		result = result.Select("status as Reason, count(id) as Count")
 	}
 
-	result = result.Scan(&results)
+
+	result = result.Where(filters).Group(groupby).Scan(&results)
 
 	for _, item := range results {
 		idCountMap[item.Reason] = item.Count
-	}
-
-	return idCountMap, result.Error
-}
-
-func (repo *Repository) CountIssuesProjects() (map[interface{}]int, error){
-	var results []IdCount
-	idCountMap := map[interface{}]int{}
-
-	result := (*repo.DB).Model(&issue.Issue{}).
-		Select("project_id as ItemID, count(id) as Count").
-		Group("ItemID").
-		Scan(&results)
-
-	for _, item := range results {
-		idCountMap[item.Reason] = item.Count
-	}
-
-	return idCountMap, result.Error
-}
-
-func (repo *Repository) CountIssuesPriority() (map[interface{}]int, error){
-	var results []IdCount
-	idCountMap := map[interface{}]int{}
-
-	result := (*repo.DB).Model(&issue.Issue{}).
-		Select("priority as ItemID, count(id) as Count").
-		Group("ItemID").
-		Scan(&results)
-
-	for _, item := range results {
-		idCountMap[item.Reason] = item.Count
-	}
-
-	return idCountMap, result.Error
-}
-
-func (repo *Repository) CountIssuesStatus() (map[string]int, error){
-	var results []StatusCount
-	idCountMap := map[string]int{}
-
-	result := (*repo.DB).Model(&issue.Issue{}).
-		Select("status as IssueStatus, count(id) as Count").
-		Group("IssueStatus").
-		Scan(&results)
-
-	for _, item := range results {
-		idCountMap[item.IssueStatus] = item.Count
 	}
 
 	return idCountMap, result.Error

@@ -5,6 +5,7 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"net/http"
@@ -16,8 +17,14 @@ const batchSize int = 1000
 
 type HttpServer struct{}
 
-type GroupByRequest struct {
+type ChartsRequest struct {
 	GroupBy string `json:"groupBy"`
+	Filters []Filter
+}
+
+type Filter struct {
+	FilterType string `json:"type"`
+	Value string      `json:"value"`
 }
 type Options struct {
 	Message string
@@ -388,8 +395,9 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	})
 
 	e.POST("/charts", func(c echo.Context) error {
-		var req GroupByRequest
+		var req ChartsRequest
 		var fields interface{}
+		filters := map[string]string{}
 
 		if err := c.Bind(&req); err != nil {
 			c.Logger().Error("Bind groupby error:", err)
@@ -398,9 +406,16 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			})
 		}
 
+		fmt.Print(req)
 		groupby := req.GroupBy
 
-		result, err := controller.Repo.CountIssuesGroup(groupby)
+		if len(req.Filters) != 0 {
+			for _,item := range req.Filters {
+				filters[item.FilterType] = item.Value
+			}
+		}
+
+		result, err := controller.Repo.CountIssuesGroup(groupby, filters)
 		if err != nil {
 			c.Logger().Error("SQL error:", err)
 			return server.Response(c, Options{
