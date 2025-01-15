@@ -5,6 +5,7 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
+	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"net/http"
@@ -16,8 +17,14 @@ const batchSize int = 1000
 
 type HttpServer struct{}
 
-type GroupByRequest struct {
+type ChartsRequest struct {
 	GroupBy string `json:"groupBy"`
+	Filters []Filter
+}
+
+type Filter struct {
+	FilterType string `json:"type"`
+	Value string      `json:"value"`
 }
 type Options struct {
 	Message string
@@ -36,7 +43,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost},
+		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost, http.MethodDelete},
 	}))
 
 	userGroup := e.Group("/user")
@@ -388,7 +395,10 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	})
 
 	e.POST("/charts", func(c echo.Context) error {
-		var req GroupByRequest
+		var req ChartsRequest
+		var fields interface{}
+		filters := map[string]string{}
+
 		if err := c.Bind(&req); err != nil {
 			c.Logger().Error("Bind groupby error:", err)
 			return server.Response(c, Options{
@@ -396,96 +406,59 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			})
 		}
 
+		fmt.Print(req)
 		groupby := req.GroupBy
+
+		if len(req.Filters) != 0 {
+			for _,item := range req.Filters {
+				filters[item.FilterType] = item.Value
+			}
+		}
+
+		result, err := controller.Repo.CountIssuesGroup(groupby, filters)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "row counting error for issue",
+			})
+		}
 
 		switch groupby {
 		case "user":
-			result, err := controller.Repo.CountIssuesUsers()
-			if err != nil {
-				c.Logger().Error("SQL error:", err)
-				return server.Response(c, Options{
-					Message: "row counting error for issue",
-				})
-			}
-
 			users, err := controller.Repo.ListUser()
 			if err != nil {
 				c.Logger().Error("SQL error:", err)
 				return server.Response(c, Options{
-					Message: "cann't finde users",
+					Message: "can't found users",
 				})
 			}
 
-			return server.Response(c, Options{
-				Data: map[string]interface{}{
-					"groupBy": groupby,
-					"result":  result,
-					"fields":  users,
-				},
-			})
+			fields = users
 
 		case "project":
-			result, err := controller.Repo.CountIssuesProjects()
-			if err != nil {
-				c.Logger().Error("SQL error:", err)
-				return server.Response(c, Options{
-					Message: "row counting error for issue",
-				})
-			}
-
 			projects, err := controller.Repo.ListProject()
 			if err != nil {
 				c.Logger().Error("SQL error:", err)
 				return server.Response(c, Options{
-					Message: "cann't finde projects",
+					Message: "can't found projects",
 				})
 			}
 
-			return server.Response(c, Options{
-				Data: map[string]interface{}{
-					"groupBy": groupby,
-					"result":  result,
-					"fields":  projects,
-				},
-			})
+			fields = projects
 
 		case "priority":
-			result, err := controller.Repo.CountIssuesPriority()
-			if err != nil {
-				c.Logger().Error("SQL error:", err)
-				return server.Response(c, Options{
-					Message: "row counting error for issue",
-				})
-			}
-
-			return server.Response(c, Options{
-				Data: map[string]interface{}{
-					"groupBy": groupby,
-					"result":  result,
-					"fields":  nil,
-				},
-			})
+			fields = nil
 
 		case "status":
-			result, err := controller.Repo.CountIssuesStatus()
-			if err != nil {
-				c.Logger().Error("SQL error:", err)
-				return server.Response(c, Options{
-					Message: "row counting error for issue",
-				})
-			}
-
-			return server.Response(c, Options{
-				Data: map[string]interface{}{
-					"groupBy": groupby,
-					"result":  result,
-					"fields":  nil,
-				},
-			})
+			fields = nil
 		}
 
 		return server.Response(c, Options{
-			Message: "unknown groupby",
+			Data: map[string]interface{}{
+				"groupBy": groupby,
+				"result":  result,
+				"fields":  fields,
+			},
 		})
 	})
 
