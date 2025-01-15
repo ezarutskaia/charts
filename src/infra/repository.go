@@ -12,9 +12,9 @@ type Repository struct {
 }
 
 type IdCount struct {
-		ItemID int
-        Count  int
-	}
+	Reason string  `gorm:"column:Reason"`
+	Count  int     `gorm:"column:Count"`
+}
 
 type StatusCount struct {
 	IssueStatus string
@@ -117,25 +117,35 @@ func (repo *Repository) CountUsers() (count int64, err error) {
 	return count, result.Error
 }
 
-func (repo *Repository) CountIssuesUsers() (map[int]int, error){
+func (repo *Repository) CountIssuesGroup(groupby string) (map[string]int, error){
 	var results []IdCount
-	idCountMap := map[int]int{}
+	idCountMap := map[string]int{}
 
-	result := (*repo.DB).Model(&issue.Issue{}).
-		Select("user_id as ItemID, count(id) as Count").
-		Group("ItemID").
-		Scan(&results)
+	result := (*repo.DB).Model(&issue.Issue{})
+
+	switch groupby {
+	case "user":
+		result = result.Select("CAST(user_id AS CHAR) as Reason, count(id) as Count").Group("user_id")
+	case "project":
+		result = result.Select("CAST(project_id AS CHAR) as Reason, count(id) as Count").Group("project_id")
+	case "priority":
+		result = result.Select("CAST(priority AS CHAR) as Reason, count(id) as Count").Group("priority")
+	case "status":
+		result = result.Select("status as Reason, count(id) as Count").Group("status")
+	}
+
+	result = result.Scan(&results)
 
 	for _, item := range results {
-		idCountMap[item.ItemID] = item.Count
+		idCountMap[item.Reason] = item.Count
 	}
 
 	return idCountMap, result.Error
 }
 
-func (repo *Repository) CountIssuesProjects() (map[int]int, error){
+func (repo *Repository) CountIssuesProjects() (map[interface{}]int, error){
 	var results []IdCount
-	idCountMap := map[int]int{}
+	idCountMap := map[interface{}]int{}
 
 	result := (*repo.DB).Model(&issue.Issue{}).
 		Select("project_id as ItemID, count(id) as Count").
@@ -143,15 +153,15 @@ func (repo *Repository) CountIssuesProjects() (map[int]int, error){
 		Scan(&results)
 
 	for _, item := range results {
-		idCountMap[item.ItemID] = item.Count
+		idCountMap[item.Reason] = item.Count
 	}
 
 	return idCountMap, result.Error
 }
 
-func (repo *Repository) CountIssuesPriority() (map[int]int, error){
+func (repo *Repository) CountIssuesPriority() (map[interface{}]int, error){
 	var results []IdCount
-	idCountMap := map[int]int{}
+	idCountMap := map[interface{}]int{}
 
 	result := (*repo.DB).Model(&issue.Issue{}).
 		Select("priority as ItemID, count(id) as Count").
@@ -159,7 +169,7 @@ func (repo *Repository) CountIssuesPriority() (map[int]int, error){
 		Scan(&results)
 
 	for _, item := range results {
-		idCountMap[item.ItemID] = item.Count
+		idCountMap[item.Reason] = item.Count
 	}
 
 	return idCountMap, result.Error
