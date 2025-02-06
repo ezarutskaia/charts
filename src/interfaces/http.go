@@ -5,6 +5,7 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
+	"encoding/json"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -43,7 +44,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodPatch},
 	}))
 
 	userGroup := e.Group("/user")
@@ -333,6 +334,105 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		return server.Response(c, Options{
 			Message: "Issues inserted successfully",
 			Data:    map[string]interface{}{"count": len(issues)},
+		})
+	})
+
+	issueGroup.PATCH("/update", func(c echo.Context) (err error) {
+		idParam := c.QueryParam("id")
+		idInt, err := strconv.ParseUint(idParam, 10, 32)
+		if err != nil {
+			c.Logger().Error("Parse error:", err)
+			return server.Response(c, Options{
+				Message: "invalid ID",
+			})
+		}
+		id := uint(idInt)
+
+		var jsonBody map[string]interface{}
+		if err := c.Bind(&jsonBody); err != nil {
+			c.Logger().Error("Bind error:", err)
+			return server.Response(c, Options{
+				Message: "invalid JSON payload",
+			})
+		}
+
+		oldIssue, err := controller.Repo.GetIssue(id)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "issue search error",
+			})
+		}
+
+		err = controller.Repo.UpdateIssue(id, jsonBody)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "issue update error",
+			})
+		}
+
+		newIssue, err := controller.Repo.GetIssue(id)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "issue search error",
+			})
+		}
+
+		jsonBytes, err := json.Marshal(jsonBody)
+		if err != nil {
+		    c.Logger().Error("JSON marshal error:", err)
+		    return server.Response(c, Options{
+		        Message: "failed to process JSON",
+		    })
+		}
+
+		if titleData, ok := jsonBody["title"].(map[string]interface{}); ok {
+			titleData["old"] = oldIssue.Title
+			titleData["new"] = newIssue.Title
+		}
+		if priorityData, ok := jsonBody["priority"].(map[string]interface{}); ok {
+			priorityData["old"] = oldIssue.Priority
+			priorityData["new"] = newIssue.Priority
+		}
+		if statusData, ok := jsonBody["status"].(map[string]interface{}); ok {
+			statusData["old"] = oldIssue.Status
+			statusData["new"] = newIssue.Status
+		}
+		if watchersData, ok := jsonBody["watchers"].(map[string]interface{}); ok {
+			var oldWatchers []uint
+			var newWatchers []uint
+
+			for _,watcher := range oldIssue.Watchers {
+				oldWatchers = append(oldWatchers, watcher.ID)
+			}
+			for _,watcher := range newIssue.Watchers {
+				newWatchers = append(newWatchers, watcher.ID)
+			}
+
+			watchersData["old"] = oldWatchers
+			watchersData["new"] = newWatchers
+		}
+
+		updatedComment, err := json.Marshal(jsonBody)
+		if err != nil {
+		    c.Logger().Error("JSON marshal error:", err)
+		    return server.Response(c, Options{
+		        Message: "failed to process JSON",
+		    })
+		}
+
+		diffID, err := controller.CreateDiff(jsonBytes, id, updatedComment)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "data recording error",
+			})
+		}
+
+		return server.Response(c, Options{
+			Data: map[string]interface{}{"id": diffID},
 		})
 	})
 

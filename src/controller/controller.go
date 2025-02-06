@@ -51,6 +51,12 @@ func (controller *Controller) CreateUsers(users []user.User) error {
 	return err
 }
 
+func (controller *Controller) CreateDiff(comment []byte, issueID uint, updated []byte) (id uint, err error) {
+	newComment := controller.Domain.CreateDiff(comment, issueID, updated)
+	id, err = controller.Repo.CreateDiff(newComment)
+	return
+}
+
 func (controller *Controller) DeleteIssue(id uint) error {
 	err := controller.Repo.DeleteIssue(id)
 	return err

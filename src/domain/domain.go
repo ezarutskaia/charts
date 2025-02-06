@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"charts/domain/diff"
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
@@ -20,4 +21,8 @@ func (domain *Domain) CreateProject(name string, blocked bool) *project.Project 
 
 func (domain *Domain) CreateUser(email string) *user.User {
 	return &user.User{Email: email}
+}
+
+func (domain *Domain) CreateDiff(comment []byte, id uint, updated []byte) *diff.CommentsDiff {
+	return &diff.CommentsDiff{Diff: comment, IssueID: id, Result: updated}
 }

@@ -1,10 +1,12 @@
 package infra
 
 import (
+	"charts/domain/diff"
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
 	"gorm.io/gorm"
+	"strconv"
 )
 
 type Repository struct {
@@ -46,6 +48,64 @@ func (repo *Repository) CreateProjects(projects []project.Project) error {
 	return result.Error
 }
 
+func (repo *Repository) CreateDiff(comment *diff.CommentsDiff) (uint, error) {
+	result := (*repo.DB).Create(comment)
+	return comment.ID, result.Error
+}
+
+func (repo *Repository) UpdateIssue(id uint, comments map[string]interface{}) error {
+	var updateIssue issue.Issue
+	(*repo.DB).Where("id = ?", id).Preload("Watchers").First(&updateIssue)
+
+	if titleData, ok := comments["title"].(map[string]interface{}); ok {
+		if newTitle, exist := titleData["new"].(string); exist {
+			updateIssue.Title = newTitle
+		}
+	}
+
+	if priorityData, ok := comments["priority"].(map[string]interface{}); ok {
+		if newPriority, exist := priorityData["new"]; exist {
+			switch v := newPriority.(type) {
+        	case float64:
+            	updateIssue.Priority = int(v)
+        	case string:
+	            if priorityInt, err := strconv.Atoi(v); err == nil {
+	                updateIssue.Priority = priorityInt
+	            }
+        	}
+		}
+	}
+
+	if statusData, ok := comments["status"].(map[string]interface{}); ok {
+		if newStatus, exist := statusData["new"].(string); exist {
+			updateIssue.Status = newStatus
+		}
+	}
+
+	if watchersData, ok := comments["watchers"].(map[string]interface{}); ok {
+		if newWatchers, exist := watchersData["new"]; exist {
+			var watcherIDs []int
+	        for _, v := range newWatchers.([]interface{}) {
+	            if id, ok := v.(float64); ok {
+	                watcherIDs = append(watcherIDs, int(id))
+	            }
+        	}
+
+	        if len(watcherIDs) > 0 {
+	            var users []user.User
+	            (*repo.DB).Find(&users, watcherIDs)
+	            if err := (*repo.DB).Model(&updateIssue).Association("Watchers").Replace(users); err != nil {
+	                return err
+            	}
+	        }
+		}
+	}
+
+	result := (*repo.DB).Save(&updateIssue)
+
+	return result.Error
+}
+
 func (repo *Repository) DeleteIssue (id uint) error {
 	result := (*repo.DB).Delete(&issue.Issue{}, id)
 	return result.Error
@@ -78,7 +138,7 @@ func (repo *Repository) ListProject () (projects []*project.DTOProject, err erro
 }
 
 func (repo *Repository) GetIssue (id uint) (issue *issue.Issue, err error) {
-	result := (*repo.DB).Where("id = ?", id).First(&issue)
+	result := (*repo.DB).Where("id = ?", id).Preload("Watchers").First(&issue)
 	return issue, result.Error
 }
 
