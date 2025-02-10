@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"charts/domain/diff"
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
@@ -46,6 +47,46 @@ func (repo *Repository) CreateProjects(projects []project.Project) error {
 	return result.Error
 }
 
+func (repo *Repository) CreateDiff(comment *diff.CommentsDiff) (uint, error) {
+	result := (*repo.DB).Create(comment)
+	return comment.ID, result.Error
+}
+
+func (repo *Repository) UpdateIssue(updateIssue *issue.Issue, comments map[string]interface{}) error {
+	if titleData, ok := comments["title"].(string); ok {
+		updateIssue.Title = titleData
+	}
+
+	if priorityData, ok := comments["priority"].(float64); ok {
+		updateIssue.Priority = int(priorityData)
+	}
+
+	if statusData, ok := comments["status"].(string); ok {
+		updateIssue.Status = statusData
+	}
+
+	if watchersData, ok := comments["watchers"]; ok {
+		var watcherIDs []int
+        for _, v := range watchersData.([]interface{}) {
+            if id, ok := v.(float64); ok {
+                watcherIDs = append(watcherIDs, int(id))
+			}
+		}
+
+        if len(watcherIDs) > 0 {
+            var users []user.User
+            (*repo.DB).Find(&users, watcherIDs)
+            if err := (*repo.DB).Model(&updateIssue).Association("Watchers").Replace(users); err != nil {
+                return err
+			}
+        }
+	}
+
+	result := (*repo.DB).Save(&updateIssue)
+
+	return result.Error
+}
+
 func (repo *Repository) DeleteIssue (id uint) error {
 	result := (*repo.DB).Delete(&issue.Issue{}, id)
 	return result.Error
@@ -78,7 +119,7 @@ func (repo *Repository) ListProject () (projects []*project.DTOProject, err erro
 }
 
 func (repo *Repository) GetIssue (id uint) (issue *issue.Issue, err error) {
-	result := (*repo.DB).Where("id = ?", id).First(&issue)
+	result := (*repo.DB).Where("id = ?", id).Preload("Watchers").First(&issue)
 	return issue, result.Error
 }
 

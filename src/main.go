@@ -3,6 +3,7 @@ package main
 import (
 	"charts/controller"
 	"charts/domain"
+	"charts/domain/diff"
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
@@ -26,7 +27,7 @@ func main() {
 	if err != nil {
         log.Fatal(err)
     }
-	err = (*db).AutoMigrate(&issue.Issue{}, &user.User{}, &project.Project{})
+	err = (*db).AutoMigrate(&issue.Issue{}, &user.User{}, &project.Project{}, &diff.CommentsDiff{})
 	if err != nil {
 		fmt.Println(err)
 	}

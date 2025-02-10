@@ -43,7 +43,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowMethods: []string{http.MethodOptions, http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodPatch},
 	}))
 
 	userGroup := e.Group("/user")
@@ -333,6 +333,55 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		return server.Response(c, Options{
 			Message: "Issues inserted successfully",
 			Data:    map[string]interface{}{"count": len(issues)},
+		})
+	})
+
+	issueGroup.PATCH("/update", func(c echo.Context) (err error) {
+		idParam := c.QueryParam("id")
+		idInt, err := strconv.ParseUint(idParam, 10, 32)
+		if err != nil {
+			c.Logger().Error("Parse error:", err)
+			return server.Response(c, Options{
+				Message: "invalid ID",
+			})
+		}
+		id := uint(idInt)
+
+		var jsonBody map[string]interface{}
+		if err := c.Bind(&jsonBody); err != nil {
+			c.Logger().Error("Bind error:", err)
+			return server.Response(c, Options{
+				Message: "invalid JSON payload",
+			})
+		}
+
+		oldIssue, err := controller.Repo.GetIssue(id)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "issue search error",
+			})
+		}
+
+		updatedIssue := *oldIssue
+		err = controller.Repo.UpdateIssue(&updatedIssue, jsonBody)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "issue update error",
+			})
+		}
+
+		diffID, err := controller.CreateDiff(id, jsonBody, oldIssue)
+		if err != nil {
+			c.Logger().Error("SQL error:", err)
+			return server.Response(c, Options{
+				Message: "data recording error",
+			})
+		}
+
+		return server.Response(c, Options{
+			Data: map[string]interface{}{"id": diffID},
 		})
 	})
 
