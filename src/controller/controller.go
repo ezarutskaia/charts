@@ -6,6 +6,7 @@ import (
 	"charts/domain/project"
 	"charts/domain/user"
 	"charts/infra"
+	"encoding/json"
 	"time"
 )
 
@@ -51,8 +52,64 @@ func (controller *Controller) CreateUsers(users []user.User) error {
 	return err
 }
 
-func (controller *Controller) CreateDiff(comment []byte, issueID uint, updated []byte) (id uint, err error) {
-	newComment := controller.Domain.CreateDiff(comment, issueID, updated)
+func (controller *Controller) CreateDiff(issueID uint, jsonBody map[string]interface{}, oldIssue *issue.Issue) (id uint, err error) {
+
+	comment, err := json.Marshal(jsonBody)
+	if err != nil {
+	    return 0, err
+	}
+
+	newIssue, err := controller.Repo.GetIssue(oldIssue.ID)
+		if err != nil {
+			return 0, err
+		}
+
+	newJson := map[string]interface{}{}
+	if _, ok := jsonBody["title"].(string); ok {
+		oldNewTitle := map[string]interface{}{
+	        "old": oldIssue.Title,
+	        "new": newIssue.Title,
+    	}
+    	newJson["title"] = oldNewTitle
+	}
+	if _, ok := jsonBody["priority"].(float64); ok {
+		oldNewPriority := map[string]interface{}{
+	        "old": oldIssue.Priority,
+	        "new": newIssue.Priority,
+	    }
+	    newJson["priority"] = oldNewPriority
+	}
+	if _, ok := jsonBody["status"].(string); ok {
+		oldNewStatus := map[string]interface{}{
+	        "old": oldIssue.Status,
+	        "new": newIssue.Status,
+	    }
+	    newJson["status"] = oldNewStatus
+	}
+	if _, ok := jsonBody["watchers"]; ok {
+		var oldWatchers []uint
+		var newWatchers []uint
+
+		for _,watcher := range oldIssue.Watchers {
+			oldWatchers = append(oldWatchers, watcher.ID)
+		}
+		for _,watcher := range newIssue.Watchers {
+			newWatchers = append(newWatchers, watcher.ID)
+		}
+
+		oldNewWatchers := map[string]interface{}{
+	        "old": oldWatchers,
+	        "new": newWatchers,
+	    }
+	    newJson["watchers"] = oldNewWatchers
+	}
+
+	resultComment, err := json.Marshal(newJson)
+	if err != nil {
+		return 0, err
+	}
+
+	newComment := controller.Domain.CreateDiff(comment, issueID, resultComment)
 	id, err = controller.Repo.CreateDiff(newComment)
 	return
 }
