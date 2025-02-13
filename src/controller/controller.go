@@ -15,6 +15,11 @@ type Controller struct {
 	Domain *domain.Domain
 }
 
+type LinePoint struct {
+	 Label string
+	 Data []int
+}
+
 func (controller *Controller) CreateIssue(title string, user user.User, project project.Project, priority int, status string, deadline time.Time, watchers []user.User) (id uint, err error) {
 	newIssue := controller.Domain.CreateIssue(title, user, project, priority, status, deadline, watchers)
 	id, err = controller.Repo.CreateIssue(newIssue)
@@ -127,4 +132,25 @@ func (controller *Controller) DeleteProject(id uint) error {
 func (controller *Controller) DeleteUser(id uint) error {
 	err := controller.Repo.DeleteUser(id)
 	return err
+}
+
+func (controller *Controller) LineIssues() ([]LinePoint, error) {
+	var points []LinePoint
+	filters := []string{"open", "closed", "in_progress", "canceled"}
+
+	for _, filter := range filters {
+		count := make([]int, 10)
+		for i := range 9 {
+		    count[i] = 1
+		}
+		num, err := controller.Repo.CountIssuesLine(filter)
+		if err != nil {
+			return nil, err
+		}
+
+		count[9] = num
+		points = append(points, LinePoint{Label: filter, Data: count})
+	}
+
+	return points, nil
 }

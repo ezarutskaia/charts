@@ -511,7 +511,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		}
 
 		for req.ChartType == "line" {
-			result, err := controller.Repo.LineIssues()
+			result, err := controller.LineIssues()
 			if err != nil {
 				c.Logger().Error("SQL error:", err)
 				return server.Response(c, Options{

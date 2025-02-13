@@ -17,11 +17,6 @@ type IdCount struct {
 	Count  int     `gorm:"column:Count"`
 }
 
-type LinePoint struct {
-	 Label string
-	 Data []int
-}
-
 func (repo *Repository) CreateIssue(issue *issue.Issue) (uint, error) {
 	result := (*repo.DB).Create(issue)
 	return issue.ID, result.Error
@@ -187,17 +182,12 @@ func (repo *Repository) CountIssuesGroup(groupby string, filters map[string]stri
 	return idCountMap, result.Error
 }
 
-func (repo *Repository) LineIssues() ([]LinePoint, error) {
-	var points []LinePoint
-	filters := []string{"open", "closed", "in_progress", "canceled"}
-
-	for _, filter := range filters {
-		count := make([]int, 10)
-		for i := range count {
-		    count[i] = 1
-		}
-		points = append(points, LinePoint{Label: filter, Data: count})
-	}
-
-	return points, nil
+func (repo *Repository) CountIssuesLine(filter string) (int, error){
+	var result IdCount
+	err := (*repo.DB).Model(&issue.Issue{}).
+		Select("status, count(id) as Count").
+		Group("status").
+		Having("status = ?", filter).
+		Find(&result)
+	return result.Count, err.Error
 }
