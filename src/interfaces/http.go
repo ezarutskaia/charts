@@ -5,7 +5,7 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
-	"fmt"
+	_ "fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"net/http"
@@ -19,6 +19,7 @@ type HttpServer struct{}
 
 type ChartsRequest struct {
 	GroupBy string `json:"groupBy"`
+	ChartType string `json:"chartType"`
 	Filters []Filter
 }
 
@@ -455,59 +456,79 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 			})
 		}
 
-		fmt.Print(req)
-		groupby := req.GroupBy
-
 		if len(req.Filters) != 0 {
 			for _,item := range req.Filters {
 				filters[item.FilterType] = item.Value
 			}
 		}
 
-		result, err := controller.Repo.CountIssuesGroup(groupby, filters)
-		if err != nil {
-			c.Logger().Error("SQL error:", err)
+		for req.ChartType == "bar" || req.ChartType == "" {
+			result, err := controller.Repo.CountIssuesGroup(req.GroupBy, filters)
+			if err != nil {
+				c.Logger().Error("SQL error:", err)
+				return server.Response(c, Options{
+					Message: "row counting error for issue",
+					})
+			}
+
+			switch req.GroupBy {
+			case "user":
+				users, err := controller.Repo.ListUser()
+				if err != nil {
+					c.Logger().Error("SQL error:", err)
+					return server.Response(c, Options{
+						Message: "can't found users",
+						})
+				}
+
+				fields = users
+
+			case "project":
+				projects, err := controller.Repo.ListProject()
+				if err != nil {
+					c.Logger().Error("SQL error:", err)
+					return server.Response(c, Options{
+						Message: "can't found projects",
+						})
+				}
+
+				fields = projects
+
+			case "priority":
+				fields = nil
+
+			case "status":
+				fields = nil
+			}
+
 			return server.Response(c, Options{
-				Message: "row counting error for issue",
-			})
+				Data: map[string]interface{}{
+					"groupBy": req.GroupBy,
+					"result":  result,
+					"fields":  fields,
+					},
+					})
 		}
 
-		switch groupby {
-		case "user":
-			users, err := controller.Repo.ListUser()
+		for req.ChartType == "line" {
+			result, err := controller.Repo.LineIssues()
 			if err != nil {
 				c.Logger().Error("SQL error:", err)
 				return server.Response(c, Options{
-					Message: "can't found users",
-				})
+					Message: "row counting error for issue",
+					})
 			}
 
-			fields = users
-
-		case "project":
-			projects, err := controller.Repo.ListProject()
-			if err != nil {
-				c.Logger().Error("SQL error:", err)
-				return server.Response(c, Options{
-					Message: "can't found projects",
-				})
-			}
-
-			fields = projects
-
-		case "priority":
-			fields = nil
-
-		case "status":
-			fields = nil
+			return server.Response(c, Options{
+				Data: map[string]interface{}{
+					"groupBy": req.GroupBy,
+					"result":  result,
+					},
+					})
 		}
 
 		return server.Response(c, Options{
-			Data: map[string]interface{}{
-				"groupBy": groupby,
-				"result":  result,
-				"fields":  fields,
-			},
+			Message: "Unknown request",
 		})
 	})
 
