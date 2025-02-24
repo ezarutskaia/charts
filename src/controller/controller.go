@@ -5,8 +5,13 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
+	"charts/helpers"
 	"charts/infra"
 	"encoding/json"
+	"errors"
+	_ "errors"
+	"gorm.io/gorm"
+	_ "gorm.io/gorm"
 	"time"
 )
 
@@ -135,21 +140,82 @@ func (controller *Controller) DeleteUser(id uint) error {
 }
 
 func (controller *Controller) LineIssues() ([]LinePoint, error) {
+	var reason string
 	var points []LinePoint
-	filters := []string{"open", "closed", "in_progress", "canceled"}
+	statuses := []string{"open", "closed", "in_progress", "canceled"}
+	array := make([]int, 10)
+	today := time.Now()
+	dates := make([]time.Time, 10)
+	counter := map[string]int{}
 
-	for _, filter := range filters {
-		count := make([]int, 10)
-		for i := range 9 {
-		    count[i] = 1
+	for _,status := range statuses {
+		points = append(points, LinePoint{status, array})
+	}
+
+	for i := 0; i < 10; i++ {
+		dates[i] = today.AddDate(0, 0, i-9)
+	}
+
+	ids, err := controller.Repo.ListIssueID()
+	if err != nil {
+		return nil, err
+	}
+
+	for i, date := range dates[:9] {
+		for _,status := range statuses {
+			counter[status] = 0
 		}
-		num, err := controller.Repo.CountIssuesLine(filter)
+
+		for _, id := range ids {
+			diffBefore, err := controller.Repo.DiffBefore(id, date)
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound)  {
+				return nil, err
+			}
+
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				diffAfter, err := controller.Repo.DiffAfter(id, date)
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound)  {
+					return nil, err
+				}
+
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					reason, err = controller.Repo.FindIssueStatus(id)
+					if err != nil {
+						return nil, err
+					}
+
+				} else {
+					reason, err = helpers.FindStatus(diffAfter, "old")
+					if err != nil {
+						return nil, err
+					}
+				}
+
+			} else {
+				reason, err = helpers.FindStatus(diffBefore, "new")
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			counter[reason] += 1
+		}
+
+		for _, point := range points{
+			point.Data[i] = counter[point.Label]
+		}
+	}
+
+	for _, status := range statuses {
+		num, err := controller.Repo.CountIssuesLine(status)
 		if err != nil {
 			return nil, err
 		}
-
-		count[9] = num
-		points = append(points, LinePoint{Label: filter, Data: count})
+		for _, point := range points {
+			if point.Label == status {
+				point.Data[9] = num
+			}
+		}
 	}
 
 	return points, nil

@@ -6,6 +6,7 @@ import (
 	"charts/domain/project"
 	"charts/domain/user"
 	"gorm.io/gorm"
+	"time"
 )
 
 type Repository struct {
@@ -108,6 +109,12 @@ func (repo *Repository) ListIssue () (issues []*issue.Issue, err error) {
 	return issues, result.Error
 }
 
+func (repo *Repository) ListIssueID () ([]int, error) {
+	var ids []int
+	result := (*repo.DB).Model(&issue.Issue{}).Pluck("id", &ids)
+	return ids, result.Error
+}
+
 func (repo *Repository) ListUser () (users []*user.DTOUser, err error) {
 	result := (*repo.DB).Model(&user.User{}).Select("id", "email").Find(&users)
 	return users, result.Error
@@ -190,4 +197,25 @@ func (repo *Repository) CountIssuesLine(filter string) (int, error){
 		Having("status = ?", filter).
 		Find(&result)
 	return result.Count, err.Error
+}
+
+func (repo *Repository) DiffBefore(id int, date time.Time) (diff *diff.CommentsDiff, err error){
+	result := (*repo.DB).Where("id = ? AND created_at <= ?", id, date).Last(&diff)
+	return diff, result.Error
+}
+
+func (repo *Repository) DiffAfter(id int, date time.Time) (diff *diff.CommentsDiff, err error){
+	result := (*repo.DB).Where("id = ? AND created_at > ?", id, date).First(&diff)
+	return diff, result.Error
+}
+
+func (repo *Repository) FindIssueStatus(id int) (string, error) {
+	var status string
+	result := (*repo.DB).
+		Model(&issue.Issue{}).
+		Select("status").
+		Where("id = ?", id).
+		Scan(&status)
+
+	return status, result.Error
 }

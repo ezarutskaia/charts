@@ -480,7 +480,6 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 						Message: "can't found users",
 						})
 				}
-
 				fields = users
 
 			case "project":
@@ -491,7 +490,6 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 						Message: "can't found projects",
 						})
 				}
-
 				fields = projects
 
 			case "priority":
