@@ -139,18 +139,12 @@ func (controller *Controller) DeleteUser(id uint) error {
 	return err
 }
 
-func (controller *Controller) LineIssues() ([]LinePoint, error) {
+func (controller *Controller) LineIssues() (map[time.Time]map[string]int, error) {
 	var reason string
-	var points []LinePoint
+	points := map[time.Time]map[string]int{}
 	statuses := []string{"open", "closed", "in_progress", "canceled"}
-	array := make([]int, 10)
 	today := time.Now()
 	dates := make([]time.Time, 10)
-	counter := map[string]int{}
-
-	for _,status := range statuses {
-		points = append(points, LinePoint{status, array})
-	}
 
 	for i := 0; i < 10; i++ {
 		dates[i] = today.AddDate(0, 0, i-9)
@@ -161,61 +155,50 @@ func (controller *Controller) LineIssues() ([]LinePoint, error) {
 		return nil, err
 	}
 
-	for i, date := range dates[:9] {
-		for _,status := range statuses {
-			counter[status] = 0
-		}
-
+	for _, date := range dates[:9] {
 		for _, id := range ids {
 			diffBefore, err := controller.Repo.DiffBefore(id, date)
 			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound)  {
 				return nil, err
 			}
-
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				diffAfter, err := controller.Repo.DiffAfter(id, date)
 				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound)  {
 					return nil, err
 				}
-
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					reason, err = controller.Repo.FindIssueStatus(id)
 					if err != nil {
 						return nil, err
 					}
-
 				} else {
 					reason, err = helpers.FindStatus(diffAfter, "old")
 					if err != nil {
 						return nil, err
 					}
 				}
-
 			} else {
 				reason, err = helpers.FindStatus(diffBefore, "new")
 				if err != nil {
 					return nil, err
 				}
 			}
-
-			counter[reason] += 1
-		}
-
-		for _, point := range points{
-			point.Data[i] = counter[point.Label]
+			if _, exists := points[date]; !exists {
+				points[date] = make(map[string]int)
+			}
+			points[date][reason] += 1
 		}
 	}
 
+	if _, exists := points[dates[9]]; !exists {
+		points[dates[9]] = make(map[string]int)
+	}
 	for _, status := range statuses {
-		num, err := controller.Repo.CountIssuesLine(status)
+		currentCountIssues, err := controller.Repo.CountIssuesLine(status)
 		if err != nil {
 			return nil, err
 		}
-		for _, point := range points {
-			if point.Label == status {
-				point.Data[9] = num
-			}
-		}
+		points[dates[9]][status] = currentCountIssues
 	}
 
 	return points, nil

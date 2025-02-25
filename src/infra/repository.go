@@ -200,12 +200,12 @@ func (repo *Repository) CountIssuesLine(filter string) (int, error){
 }
 
 func (repo *Repository) DiffBefore(id int, date time.Time) (diff *diff.CommentsDiff, err error){
-	result := (*repo.DB).Where("id = ? AND created_at <= ?", id, date).Last(&diff)
+	result := (*repo.DB).Where("issue_id = ? AND created_at <= ?", id, date).Last(&diff)
 	return diff, result.Error
 }
 
 func (repo *Repository) DiffAfter(id int, date time.Time) (diff *diff.CommentsDiff, err error){
-	result := (*repo.DB).Where("id = ? AND created_at > ?", id, date).First(&diff)
+	result := (*repo.DB).Where("issue_id = ? AND created_at > ?", id, date).First(&diff)
 	return diff, result.Error
 }
 
