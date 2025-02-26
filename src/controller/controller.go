@@ -5,14 +5,24 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
+	"charts/helpers"
 	"charts/infra"
 	"encoding/json"
+	"errors"
+	_ "errors"
+	"gorm.io/gorm"
+	_ "gorm.io/gorm"
 	"time"
 )
 
 type Controller struct {
 	Repo *infra.Repository
 	Domain *domain.Domain
+}
+
+type LinePoint struct {
+	 Label string
+	 Data []int
 }
 
 func (controller *Controller) CreateIssue(title string, user user.User, project project.Project, priority int, status string, deadline time.Time, watchers []user.User) (id uint, err error) {
@@ -127,4 +137,69 @@ func (controller *Controller) DeleteProject(id uint) error {
 func (controller *Controller) DeleteUser(id uint) error {
 	err := controller.Repo.DeleteUser(id)
 	return err
+}
+
+func (controller *Controller) LineIssues() (map[time.Time]map[string]int, error) {
+	var reason string
+	points := map[time.Time]map[string]int{}
+	statuses := []string{"open", "closed", "in_progress", "canceled"}
+	today := time.Now()
+	dates := make([]time.Time, 10)
+
+	for i := 0; i < 10; i++ {
+		dates[i] = today.AddDate(0, 0, i-9)
+	}
+
+	ids, err := controller.Repo.ListIssueID()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, date := range dates[:9] {
+		for _, id := range ids {
+			diffBefore, err := controller.Repo.DiffBefore(id, date)
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound)  {
+				return nil, err
+			}
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				diffAfter, err := controller.Repo.DiffAfter(id, date)
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound)  {
+					return nil, err
+				}
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					reason, err = controller.Repo.FindIssueStatus(id)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					reason, err = helpers.FindStatus(diffAfter, "old")
+					if err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				reason, err = helpers.FindStatus(diffBefore, "new")
+				if err != nil {
+					return nil, err
+				}
+			}
+			if _, exists := points[date]; !exists {
+				points[date] = make(map[string]int)
+			}
+			points[date][reason] += 1
+		}
+	}
+
+	if _, exists := points[dates[9]]; !exists {
+		points[dates[9]] = make(map[string]int)
+	}
+	for _, status := range statuses {
+		currentCountIssues, err := controller.Repo.CountIssuesLine(status)
+		if err != nil {
+			return nil, err
+		}
+		points[dates[9]][status] = currentCountIssues
+	}
+
+	return points, nil
 }
