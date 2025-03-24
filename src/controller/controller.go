@@ -18,6 +18,7 @@ import (
 type Controller struct {
 	Repo *infra.Repository
 	Domain *domain.Domain
+	Redis *infra.RedisRepository
 }
 
 type LinePoint struct {
