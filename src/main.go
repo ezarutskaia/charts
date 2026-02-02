@@ -9,7 +9,9 @@ import (
 	"charts/domain/user"
 	"charts/infra"
 	"charts/interfaces"
+	"context"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
@@ -17,7 +19,7 @@ import (
 
 type App struct {
 	Domain *domain.Domain
-	Infra *infra.Repository
+	Infra *infra.Infra
 	Interfaces *interfaces.HttpServer
 }
 
@@ -32,16 +34,32 @@ func main() {
 		fmt.Println(err)
 	}
 
+	ctx := context.Background()
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "redis:6379",
+		DB:   0,
+	})
+	_, err = rdb.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Error connecting to Redis: %v", err)
+	}
+
 	app := &App{
 		Domain: &domain.Domain{},
-		Infra: &infra.Repository{
-			DB: db,
+		Infra: &infra.Infra{
+			Repository: &infra.Repository{
+				DB: db,
 			},
+			Redis: &infra.RedisRepository{
+				Client: rdb,
+			},
+		},
 		Interfaces: &interfaces.HttpServer{},
 	}
 
 	app.Interfaces.HandleHttp(&controller.Controller{
-		Repo: app.Infra,
+		Repo: app.Infra.Repository,
 		Domain: app.Domain,
+		Redis: app.Infra.Redis,
 	})
 }

@@ -5,6 +5,9 @@ import (
 	"charts/domain/issue"
 	"charts/domain/project"
 	"charts/domain/user"
+	"charts/helpers"
+	"context"
+	"encoding/json"
 	_ "fmt"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -445,6 +448,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 	})
 
 	e.POST("/charts", func(c echo.Context) error {
+		ctx := context.Background()
 		var req ChartsRequest
 		var fields interface{}
 		filters := map[string]string{}
@@ -509,12 +513,43 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 		}
 
 		for req.ChartType == "line" {
+			jsonData, err := json.Marshal(req)
+			if err != nil {
+				c.Logger().Error("JSON serialization error:", err)
+				return server.Response(c, Options{
+					Message: "cannot get string to generate CacheKey",
+				})
+			}
+			cacheKey := helpers.GenerateCacheKey(jsonData)
+			cachedData, err := controller.Redis.Get(ctx, cacheKey)
+			cachedResult := map[time.Time]map[string]int{}
+			if err == nil {
+				err = json.Unmarshal([]byte(cachedData), &cachedResult)
+				if err != nil {
+        			c.Logger().Error("Cache JSON decode error:", err)
+        			return server.Response(c, Options{
+            			Message: "error decoding cached data",
+        			})
+    			}
+				c.Logger().Info("Cache hit for key:", cacheKey)
+				return server.Response(c, Options{
+					Data: map[string]interface{}{
+					"groupBy": req.GroupBy,
+					"result":  cachedResult,
+					},
+				})
+			}
+
 			result, err := controller.LineIssues()
 			if err != nil {
 				c.Logger().Error("SQL error:", err)
 				return server.Response(c, Options{
 					Message: "row counting error for issue",
-					})
+				})
+			}
+			resultJSON, err := json.Marshal(result)
+			if err == nil {
+				_ = controller.Redis.Set(ctx, cacheKey, string(resultJSON))
 			}
 
 			return server.Response(c, Options{
@@ -522,7 +557,7 @@ func (server HttpServer) HandleHttp(controller *controller.Controller) {
 					"groupBy": req.GroupBy,
 					"result":  result,
 					},
-					})
+				})
 		}
 
 		return server.Response(c, Options{

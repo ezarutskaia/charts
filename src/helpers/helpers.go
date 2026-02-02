@@ -2,9 +2,16 @@ package helpers
 
 import (
 	"charts/domain/diff"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 )
+
+func GenerateCacheKey(jsonStr []byte) string {
+	hash := sha256.Sum256(jsonStr)
+	return hex.EncodeToString(hash[:])
+}
 
 func FindStatus(diff *diff.CommentsDiff, comment string) (string, error) {
 	var status string
